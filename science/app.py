@@ -1,6 +1,7 @@
 import json
-from chalice import Chalice
+from chalice import Chalice, CORSConfig
 from pymongo import MongoClient
+from bson.objectid import ObjectId
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -8,29 +9,30 @@ from sklearn.decomposition import PCA
 
 app = Chalice(app_name='science')
 
+app.debug = True
+
 # Reuse the Mongo client across Lambda calls.
 # TODO: Make DB connection info dependent on environment.
 client = MongoClient()
 db = client['personal-science']
 
+cors_config = CORSConfig(
+    # TODO: Make this environment-dependent.
+    allow_origin='http://localhost:3000',
+    allow_credentials=True
+)
+
 # TODO: Use a more specific CORS definition.
-@app.route('/', cors=True)
+@app.route('/', cors=cors_config)
 def index():
+    user_id = app.current_request.query_params['userId']
+    comparison_tag = app.current_request.query_params['comparisonTag']
+
     SITE = 'gut'
     TAXON_RANK = 'family'
 
-    # TODO: Authenticate the request.
-
-    samples = list(db.microbiomesamples.aggregate([
-        {
-            '$match': {
-                'tags': {
-                    '$elemMatch': { '$in': [ 'spencer', 'richard' ] }
-                    },
-                'site': SITE
-                }
-            },
-        {
+    # The common JOIN operator.
+    lookup = {
             '$lookup': {
                 'from': 'microbiomesampledata',
                 'let': { 'id': '$_id' },
@@ -51,8 +53,35 @@ def index():
                 }
             }
 
+    user_samples = list(db.microbiomesamples.aggregate([
+        {
+            '$match': {
+                'userId': ObjectId(user_id),
+                'site': SITE
+                }
+            },
+        lookup
+
         # TODO: Project.
         ]))
+
+    comparison_samples = list(db.microbiomesamples.aggregate([
+        {
+            '$match': {
+                # Don't match the user's samples a second time.
+                'userId': { '$ne': ObjectId(user_id) },
+                'tags': {
+                    '$elemMatch': { '$eq': comparison_tag }
+                    },
+                'site': SITE
+                }
+            },
+        lookup
+
+        # TODO: Project.
+        ]))
+
+    samples = user_samples + comparison_samples
 
     count_norms_by_sample = {}
 
@@ -99,10 +128,10 @@ def index():
     # Form data frame for sample groups and titles.
     labels_df_data = {'group': [], 'title': []}
     for sample in samples:
-        if 'spencer' in sample['tags']:
-            labels_df_data['group'].append('spencer')
-        elif 'richard' in sample['tags']:
-            labels_df_data['group'].append('richard')
+        if str(sample['userId']) == user_id:
+            labels_df_data['group'].append('You')
+        else:
+            labels_df_data['group'].append(comparison_tag)
 
         labels_df_data['title'].append(sample['title'])
 
