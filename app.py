@@ -1,28 +1,32 @@
 import json
 from chalice import Chalice, CORSConfig
-from pymongo import MongoClient
 from bson.objectid import ObjectId
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+from Environment import (
+        DEVELOPMENT,
+        get_environment,
+        get_cors_origin
+        )
+from DbClient import client
 
-app = Chalice(app_name='science')
 
-app.debug = True
+app = Chalice(app_name='personal-science')
+
+if get_environment() == DEVELOPMENT:
+    app.debug = True
 
 # Reuse the Mongo client across Lambda calls.
-# TODO: Make DB connection info dependent on environment.
-client = MongoClient()
-db = client['personal-science']
+# db = client['app']
+db = client['copy']
 
 cors_config = CORSConfig(
-    # TODO: Make this environment-dependent.
-    allow_origin='http://localhost:3000',
+    allow_origin=get_cors_origin(),
     allow_credentials=True
 )
 
-# TODO: Use a more specific CORS definition.
 @app.route('/', cors=cors_config)
 def index():
     user_id = app.current_request.query_params['userId']
@@ -36,20 +40,34 @@ def index():
             '$lookup': {
                 'from': 'microbiomesampledata',
                 'let': { 'id': '$_id' },
-                'pipeline': [
-                    {
-                        '$match': {
-                            '$expr': {
-                                '$and': [
-                                    { '$eq': ['$$id', '$sampleId'] },
-                                    { '$eq': ['$taxonRank', TAXON_RANK] }
-                                    ]
-                                }
+                'pipeline': [{
+                    '$match': {
+                        '$expr': {
+                            '$and': [
+                                { '$eq': ['$sampleId', '$$id'] },
+                                { '$eq': ['$taxonRank', TAXON_RANK] }
+                                ]
                             }
                         }
-                    # TODO: Project.
-                    ],
-                'as': 'sampleData'
+                    }, {
+                        '$project': {
+                            '_id': 0,
+                            'taxonName': 1,
+                            'countNorm': 1
+                            }
+                        }],
+                    'as': 'sampleData'
+                    }
+            }
+
+    projection = {
+            '$project': {
+                'title': 1,
+                'tags': 1,
+                'userId': 1,
+                'site': 1,
+                'sampleTakenAt': 1,
+                'sampleData': 1
                 }
             }
 
@@ -60,9 +78,8 @@ def index():
                 'site': SITE
                 }
             },
-        lookup
-
-        # TODO: Project.
+        lookup,
+        projection
         ]))
 
     comparison_samples = list(db.microbiomesamples.aggregate([
@@ -76,9 +93,8 @@ def index():
                 'site': SITE
                 }
             },
-        lookup
-
-        # TODO: Project.
+        lookup,
+        projection
         ]))
 
     samples = user_samples + comparison_samples
@@ -113,6 +129,8 @@ def index():
                 count_norm = 0
 
             data[microbe_name].append(count_norm)
+
+    print('data', data)
 
     # Create data frame.
     df = pd.DataFrame(data=data)

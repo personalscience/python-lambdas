@@ -130,3 +130,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Chalice
+.chalice/deployments/
+.chalice/venv/
