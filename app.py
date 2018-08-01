@@ -13,7 +13,7 @@ from Environment import (
 from DbClient import client
 
 
-app = Chalice(app_name='personal-science')
+app = Chalice(app_name='python-lambdas')
 
 if get_environment() == DEVELOPMENT:
     app.debug = True
