@@ -26,8 +26,12 @@ cors_config = CORSConfig(
     allow_credentials=True
 )
 
-@app.route('/', cors=cors_config)
-def index():
+"""
+Generates PCA data comparing the data belonging to the user whose ID is passed with samples
+belonging to other users that match the specified `comparisonTag`.
+"""
+@app.route('/pca', cors=cors_config)
+def pca():
     user_id = app.current_request.query_params['userId']
     comparison_tag = app.current_request.query_params['comparisonTag']
 
