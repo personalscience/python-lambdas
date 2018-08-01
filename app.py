@@ -133,8 +133,6 @@ def pca():
 
             data[microbe_name].append(count_norm)
 
-    print('data', data)
-
     # Create data frame.
     df = pd.DataFrame(data=data)
 
