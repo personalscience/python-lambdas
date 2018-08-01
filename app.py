@@ -19,8 +19,7 @@ if get_environment() == DEVELOPMENT:
     app.debug = True
 
 # Reuse the Mongo client across Lambda calls.
-# db = client['app']
-db = client['copy']
+db = client['app']
 
 cors_config = CORSConfig(
     allow_origin=get_cors_origin(),
