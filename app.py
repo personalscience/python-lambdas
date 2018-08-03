@@ -1,36 +1,28 @@
 import json
-from chalice import Chalice, CORSConfig
+from chalice import Chalice
 from bson.objectid import ObjectId
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from pymongo.errors import ConnectionFailure
 
-from Environment import (
-        DEVELOPMENT,
-        get_environment,
-        get_cors_origin
-        )
-from DbClient import client
+
+from chalicelib import Environment, DbClient
 
 
 app = Chalice(app_name='python-lambdas')
 
-if get_environment() == DEVELOPMENT:
-    app.debug = True
+# For now, enable debug mode regardless of the environment.
+app.debug = True
 
 # Reuse the Mongo client across Lambda calls.
-db = client['app']
-
-cors_config = CORSConfig(
-    allow_origin=get_cors_origin(),
-    allow_credentials=True
-)
+db = DbClient.client['app']
 
 """
 Generates PCA data comparing the data belonging to the user whose ID is passed with samples
 belonging to other users that match the specified `comparisonTag`.
 """
-@app.route('/pca', cors=cors_config)
+@app.route('/', cors=True)
 def pca():
     user_id = app.current_request.query_params['userId']
     comparison_tag = app.current_request.query_params['comparisonTag']
@@ -74,6 +66,7 @@ def pca():
                 }
             }
 
+    # `user_samples` will be empty when the user hasn't yet uploaded any samples. This is fine.
     user_samples = list(db.microbiomesamples.aggregate([
         {
             '$match': {
